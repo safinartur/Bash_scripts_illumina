@@ -1,0 +1,1 @@
+flye --nano-raw ./output_dorado_basecaller.fastq    --out-dir ./Flye_output2     --threads 64 --plasmids    --min-overlap 1000     --iterations 5
