@@ -1,0 +1,86 @@
+#!/bin/bash
+
+echo 'Write the path to bowtie2 index:'
+read BOWTIE2_INDEX
+
+
+echo 'Write the path to bwa index:'
+read BWA_INDEX
+
+echo "write the path to your fastq file 1"
+read FASTQ_FILE_1
+
+echo "write the path to your fastq file 2"
+read FASTQ_FILE_2
+
+echo "write number of threads for all commands"
+read THREADS
+
+echo "write name for output_dir for bowtie2"
+read OUTPUT_DIR_BOWTIE2
+
+mkdir "./${OUTPUT_DIR_BOWTIE2}"
+
+echo "write name for output_dir for bwa"
+read OUTPUT_DIR_BWA
+
+mkdir "./${OUTPUT_DIR_BWA}"
+
+echo "write the name for output SORTED BAM file (without .bam at the end, just name)"
+read OUTPUT_FILE_NAME
+
+
+
+bowtie2 --threads $THREADS -x $BOWTIE2_INDEX --sensitive -1 $FASTQ_FILE_1 -2 $FASTQ_FILE_2 | 
+samtools view -@ $THREADS -S -b | 
+
+
+samtools sort -@ $THREADS > "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted.bam"
+
+
+samtools index -@ $THREADS "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted.bam" 
+
+
+
+
+mkdir "${OUTPUT_DIR_BOWTIE2}/bam_file_stats"
+
+samtools stats -@ $THREADS "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted.bam"  > "${OUTPUT_DIR_BOWTIE2}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_bowtie2.stats"
+
+plot-bamstats -p "${OUTPUT_DIR_BOWTIE2}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_graph_bowtie2" "${OUTPUT_DIR_BOWTIE2}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_bowtie2.stats"
+
+samtools view -@ $THREADS -b -F 4 "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted.bam" | 
+samtools sort -@ $THREADS > "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted_F4_flag.bam" 
+
+
+#надо установить gnuplot 
+samtools coverage "${OUTPUT_DIR_BOWTIE2}/${OUTPUT_FILE_NAME}_bowtie2_sorted_F4_flag.bam" > "${OUTPUT_DIR_BOWTIE2}/bam_file_stats/${OUTPUT_FILE_NAME}_bowtie2_coverage_file.txt"
+
+#НАЧИНАЮ ДЕЛАТЬ BWA
+
+bwa mem -t $THREADS -Xmx200g $BWA_INDEX $FASTQ_FILE_1 $FASTQ_FILE_2 |
+samtools view -@ $THREADS -S -b |
+samtools sort -@ $THREADS > "${OUTPUT_DIR_BWA}/${OUTPUT_FILE_NAME}_bwa_sorted.bam"
+
+
+mkdir "${OUTPUT_DIR_BWA}/bam_file_stats"
+
+
+samtools stats -@ $THREADS "${OUTPUT_DIR_BWA}/${OUTPUT_FILE_NAME}_bwa_sorted.bam"  > "${OUTPUT_DIR_BWA}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_bwa.stats"
+
+
+plot-bamstats -p "${OUTPUT_DIR_BWA}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_graph_bwa" "${OUTPUT_DIR_BWA}/bam_file_stats/${OUTPUT_FILE_NAME}_stats_file_bwa.stats"
+
+samtools view -@ $THREADS -b -F 4 "${OUTPUT_DIR_BWA}/${OUTPUT_FILE_NAME}_bwa_sorted.bam" | 
+samtools sort -@ $THREADS > "${OUTPUT_DIR_BWA}/${OUTPUT_FILE_NAME}_bwa_sorted_F4_flag.bam" 
+
+samtools coverage "${OUTPUT_DIR_BWA}/${OUTPUT_FILE_NAME}_bwa_sorted_F4_flag.bam" > "${OUTPUT_DIR_BWA}/bam_file_stats/${OUTPUT_FILE_NAME}_bwa_coverage_file.txt"
+
+
+
+#perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar refGene ТУТ МОЯ ДИРЕКТОРИЯ-humandb/
+#perl annotate_variation.pl -buildver hg19 -downdb -webfrom annovar clinvar_20221231 humandb/ 
+
+#perl convert2annovar.pl my_vcf.vcf > vcf_file_av_input.avinput
+
+#table_annovar.pl example/ex1.avinput humandb/ -buildver hg19 -out myanno -remove -protocol refGene -operation gx -nastring . -csvout -polish 
